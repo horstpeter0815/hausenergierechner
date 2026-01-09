@@ -668,20 +668,20 @@
         
         <div class="step-content">
           <div class="tech-grid">
-            <div class="tech-card tech-b selected" data-tech-b="wp">
-              <div class="tech-icon">🌡️</div>
-              <div class="tech-name">Wärmepumpe</div>
-              <div class="tech-desc">Luft-Wasser, effizient</div>
+            <div class="tech-card tech-b" data-tech-b="pv_only">
+              <div class="tech-icon">☀️</div>
+              <div class="tech-name">Nur PV-Anlage</div>
+              <div class="tech-desc">Heizung behalten</div>
             </div>
-            <div class="tech-card tech-b" data-tech-b="wp_pv">
+            <div class="tech-card tech-b selected" data-tech-b="wp_pv">
               <div class="tech-icon">☀️🌡️</div>
               <div class="tech-name">Wärmepumpe + PV</div>
-              <div class="tech-desc">Mit Solarstrom</div>
+              <div class="tech-desc">Komplett-Umstieg</div>
             </div>
-            <div class="tech-card tech-b" data-tech-b="gas_neu">
-              <div class="tech-icon">🔥</div>
-              <div class="tech-name">Gas-Brennwert</div>
-              <div class="tech-desc">Neues Gasgerät</div>
+            <div class="tech-card tech-b" data-tech-b="wp">
+              <div class="tech-icon">🌡️</div>
+              <div class="tech-name">Nur Wärmepumpe</div>
+              <div class="tech-desc">Ohne PV</div>
             </div>
             <div class="tech-card tech-b" data-tech-b="pellets_neu">
               <div class="tech-icon">🪵</div>
@@ -877,7 +877,7 @@
   <script>
     let currentStep = 1;
     let selectedTechA = 'oel';
-    let selectedTechB = 'wp';
+    let selectedTechB = 'wp_pv';
     let comparisonChart = null;
 
     // Tech card selection
@@ -931,17 +931,29 @@
     function updateTechBUI() {
       const wpOptions = document.getElementById('wpOptions');
       const pvOptions = document.getElementById('pvOptions');
+      const foerderungOptions = document.getElementById('foerderungOptions');
       
+      // Show COP options only for heat pump options
       if (selectedTechB === 'wp' || selectedTechB === 'wp_pv') {
         wpOptions.style.display = 'block';
       } else {
         wpOptions.style.display = 'none';
       }
       
-      if (selectedTechB === 'wp_pv') {
+      // Show PV options for PV-only and WP+PV
+      if (selectedTechB === 'wp_pv' || selectedTechB === 'pv_only') {
         pvOptions.style.display = 'flex';
       } else {
         pvOptions.style.display = 'none';
+      }
+      
+      // Show Förderung only for heat pump options (not for PV-only)
+      if (foerderungOptions) {
+        if (selectedTechB === 'wp' || selectedTechB === 'wp_pv') {
+          foerderungOptions.style.display = 'block';
+        } else {
+          foerderungOptions.style.display = 'none';
+        }
       }
     }
 
@@ -1105,6 +1117,33 @@
       const maxFoerderfaehig = 30000;
       
       switch(selectedTechB) {
+        case 'pv_only':
+          // PV-Anlage only - keep existing heating, just add solar
+          techBName = 'Nur PV-Anlage';
+          techBIcon = '☀️';
+          
+          // PV production adjusted for roof
+          const pvProdOnlyBase = i.pvGroesse * 1050 * pvFaktor;
+          
+          // Self-consumption for household electricity only (not heating)
+          let evQuoteOnly = 0.30;
+          if (stromGesamt > 0) {
+            evQuoteOnly = Math.min(0.70, 0.25 + 0.25 * (stromGesamt / pvProdOnlyBase));
+          }
+          evQuoteOnly += Math.min(0.2, i.batterie * 0.04);
+          
+          const evOnly = Math.min(pvProdOnlyBase * evQuoteOnly, stromGesamt);
+          const einspeisungOnly = pvProdOnlyBase - evOnly;
+          const netzbezugOnly = stromGesamt - evOnly;
+          
+          // Still need to pay for heating fuel (same as Tech A)
+          elecCostB = netzbezugOnly * i.strompreis + fuelCostA; // Electricity + heating fuel
+          feedInB = -einspeisungOnly * 0.082;
+          maintCostB = 100; // Just PV maintenance
+          investBrutto = i.pvGroesse * 1400 + i.batterie * 800;
+          foerderungBetrag = 0; // No KfW subsidy for PV-only
+          investB = investBrutto;
+          break;
         case 'wp':
           techBName = 'Wärmepumpe';
           techBIcon = '🌡️';
