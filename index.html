@@ -721,6 +721,39 @@
             </div>
           </div>
 
+          <!-- Editierbare Investitionskosten -->
+          <div style="margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 12px; border: 1px dashed rgba(139, 92, 246, 0.3);">
+            <div style="font-size: 0.75rem; color: var(--purple); font-weight: 600; margin-bottom: 0.75rem;">💰 INVESTITIONSKOSTEN (aus Angebot überschreiben)</div>
+            <div class="input-row" id="kostenInputs">
+              <div class="input-group" id="wpKostenGroup">
+                <label>Wärmepumpe (inkl. Installation)</label>
+                <div class="input-wrapper">
+                  <input type="number" id="wpKosten" value="18000" min="0" max="50000" step="500" placeholder="auto">
+                  <span class="unit">€</span>
+                </div>
+              </div>
+              <div class="input-group" id="pvKostenGroup">
+                <label>PV-Anlage (inkl. Installation)</label>
+                <div class="input-wrapper">
+                  <input type="number" id="pvKosten" value="14000" min="0" max="50000" step="500" placeholder="auto">
+                  <span class="unit">€</span>
+                </div>
+              </div>
+            </div>
+            <div class="input-row">
+              <div class="input-group" id="batterieKostenGroup" style="display: none;">
+                <label>Batteriespeicher</label>
+                <div class="input-wrapper">
+                  <input type="number" id="batterieKosten" value="0" min="0" max="20000" step="500" placeholder="auto">
+                  <span class="unit">€</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 0.5rem;">
+              💡 Standardwerte basieren auf Durchschnittspreisen. Trag hier dein echtes Angebot ein!
+            </div>
+          </div>
+
           <div class="input-row">
             <div class="input-group">
               <label>Strompreis</label>
@@ -932,6 +965,9 @@
       const wpOptions = document.getElementById('wpOptions');
       const pvOptions = document.getElementById('pvOptions');
       const foerderungOptions = document.getElementById('foerderungOptions');
+      const wpKostenGroup = document.getElementById('wpKostenGroup');
+      const pvKostenGroup = document.getElementById('pvKostenGroup');
+      const batterieKostenGroup = document.getElementById('batterieKostenGroup');
       
       // Show COP options only for heat pump options
       if (selectedTechB === 'wp' || selectedTechB === 'wp_pv') {
@@ -955,7 +991,54 @@
           foerderungOptions.style.display = 'none';
         }
       }
+      
+      // Show/hide cost input groups based on selected tech
+      if (wpKostenGroup) {
+        wpKostenGroup.style.display = (selectedTechB === 'wp' || selectedTechB === 'wp_pv') ? 'block' : 'none';
+      }
+      if (pvKostenGroup) {
+        pvKostenGroup.style.display = (selectedTechB === 'wp_pv' || selectedTechB === 'pv_only') ? 'block' : 'none';
+      }
+      if (batterieKostenGroup) {
+        const batterie = parseFloat(document.getElementById('batterie').value) || 0;
+        batterieKostenGroup.style.display = (batterie > 0 && (selectedTechB === 'wp_pv' || selectedTechB === 'pv_only')) ? 'block' : 'none';
+      }
+      
+      // Update default cost values based on inputs
+      updateDefaultCosts();
     }
+    
+    function updateDefaultCosts() {
+      const pvGroesse = parseFloat(document.getElementById('pvGroesse').value) || 10;
+      const batterie = parseFloat(document.getElementById('batterie').value) || 0;
+      const wohnflaeche = parseFloat(document.getElementById('wohnflaeche').value) || 150;
+      
+      // Set default values (user can override)
+      const wpDefault = 18000 + (wohnflaeche > 150 ? 4000 : 0);
+      const pvDefault = Math.round(pvGroesse * 1400);
+      const batterieDefault = Math.round(batterie * 800);
+      
+      // Only update if field is empty or has default placeholder
+      const wpInput = document.getElementById('wpKosten');
+      const pvInput = document.getElementById('pvKosten');
+      const batterieInput = document.getElementById('batterieKosten');
+      
+      // Update placeholders to show calculated defaults
+      wpInput.placeholder = wpDefault + ' (berechnet)';
+      pvInput.placeholder = pvDefault + ' (berechnet)';
+      batterieInput.placeholder = batterieDefault + ' (berechnet)';
+      
+      // Show battery cost group if battery > 0
+      const batterieKostenGroup = document.getElementById('batterieKostenGroup');
+      if (batterieKostenGroup) {
+        batterieKostenGroup.style.display = (batterie > 0 && (selectedTechB === 'wp_pv' || selectedTechB === 'pv_only')) ? 'block' : 'none';
+      }
+    }
+    
+    // Update costs when PV size or battery changes
+    document.getElementById('pvGroesse').addEventListener('input', updateDefaultCosts);
+    document.getElementById('batterie').addEventListener('input', updateDefaultCosts);
+    document.getElementById('wohnflaeche').addEventListener('input', updateDefaultCosts);
 
     function updateProgress() {
       document.querySelectorAll('.progress-step').forEach((step, i) => {
@@ -1014,6 +1097,10 @@
         strompreis: parseFloat(document.getElementById('strompreis').value) || 0.32,
         preissteigerung: parseFloat(document.getElementById('preissteigerung').value) / 100 || 0.03,
         foerderung: parseFloat(document.getElementById('foerderung').value) / 100 || 0,
+        // Editable investment costs from real quotes
+        wpKosten: parseFloat(document.getElementById('wpKosten').value) || 18000,
+        pvKosten: parseFloat(document.getElementById('pvKosten').value) || 14000,
+        batterieKosten: parseFloat(document.getElementById('batterieKosten').value) || 0,
       };
     }
     
@@ -1140,7 +1227,8 @@
           elecCostB = netzbezugOnly * i.strompreis + fuelCostA; // Electricity + heating fuel
           feedInB = -einspeisungOnly * 0.082;
           maintCostB = 100; // Just PV maintenance
-          investBrutto = i.pvGroesse * 1400 + i.batterie * 800;
+          // Use user-provided costs
+          investBrutto = i.pvKosten + i.batterieKosten;
           foerderungBetrag = 0; // No KfW subsidy for PV-only
           investB = investBrutto;
           break;
@@ -1151,7 +1239,8 @@
           elecCostB = (stromGesamt + wpStrombedarf) * i.strompreis;
           feedInB = 0;
           maintCostB = 200;
-          investBrutto = 18000 + (i.wohnflaeche > 150 ? 4000 : 0);
+          // Use user-provided WP cost
+          investBrutto = i.wpKosten;
           // Förderung nur auf WP-Kosten (max. 30k förderfähig)
           foerderungBetrag = Math.min(investBrutto, maxFoerderfaehig) * i.foerderung;
           investB = investBrutto - foerderungBetrag;
@@ -1182,10 +1271,9 @@
           maintCostB = 250;
           
           // WP costs (förderfähig) + PV costs (nicht förderfähig via KfW Heizung)
-          const wpKosten = 18000 + (i.wohnflaeche > 150 ? 4000 : 0);
-          const pvKosten = i.pvGroesse * 1400 + i.batterie * 800;
-          foerderungBetrag = Math.min(wpKosten, maxFoerderfaehig) * i.foerderung;
-          investBrutto = wpKosten + pvKosten;
+          // Use user-provided costs
+          foerderungBetrag = Math.min(i.wpKosten, maxFoerderfaehig) * i.foerderung;
+          investBrutto = i.wpKosten + i.pvKosten + i.batterieKosten;
           investB = investBrutto - foerderungBetrag;
           if (i.foerderung > 0) techBName += ' (mit Förderung)';
           break;
