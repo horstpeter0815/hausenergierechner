@@ -697,6 +697,25 @@
               </div>
             </div>
           </div>
+
+          <!-- KfW/BAFA Förderung -->
+          <div class="input-row" id="foerderungOptions">
+            <div class="input-group" style="flex: 2;">
+              <label>🏛️ KfW/BAFA Heizungsförderung (2024)</label>
+              <div class="input-wrapper">
+                <select id="foerderung">
+                  <option value="0">Keine Förderung</option>
+                  <option value="30">30% Grundförderung (Wärmepumpe)</option>
+                  <option value="50" selected>50% (Grund + Klima-Geschwindigkeitsbonus)</option>
+                  <option value="55">55% (+ Einkommensbonus bis 40k€)</option>
+                  <option value="70">70% Maximum (alle Boni)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: -0.5rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
+            💡 <strong>Tipp:</strong> Die Förderung gilt für Wärmepumpen beim Austausch fossiler Heizungen. Klima-Geschwindigkeitsbonus (20%) bei Austausch vor 2028, Einkommensbonus (30%) bei zu versteuerndem Einkommen unter 40.000€. Max. förderfähige Kosten: 30.000€ für erste Wohneinheit.
+          </div>
         </div>
 
         <div class="nav-buttons">
@@ -768,8 +787,16 @@
                   <span class="result-value" id="maintCostB">150 €</span>
                 </div>
                 <div class="result-row">
-                  <span class="result-label">Investition</span>
-                  <span class="result-value" id="investB">35.000 €</span>
+                  <span class="result-label">Investition (brutto)</span>
+                  <span class="result-value" id="investBrutto">35.000 €</span>
+                </div>
+                <div class="result-row" id="foerderungRow" style="color: var(--success);">
+                  <span class="result-label">🏛️ KfW/BAFA Förderung</span>
+                  <span class="result-value" id="foerderungBetrag">-15.000 €</span>
+                </div>
+                <div class="result-row" style="font-weight: 600;">
+                  <span class="result-label">Investition (netto)</span>
+                  <span class="result-value" id="investB">20.000 €</span>
                 </div>
               </div>
               <div class="result-total">
@@ -931,6 +958,7 @@
         batterie: parseFloat(document.getElementById('batterie').value) || 0,
         strompreis: parseFloat(document.getElementById('strompreis').value) || 0.32,
         preissteigerung: parseFloat(document.getElementById('preissteigerung').value) / 100 || 0.03,
+        foerderung: parseFloat(document.getElementById('foerderung').value) / 100 || 0,
       };
     }
 
@@ -999,6 +1027,11 @@
       let elecCostB = 0, feedInB = 0, maintCostB = 0, investB = 0;
       let techBName = '', techBIcon = '';
       let wpStrombedarf = 0;
+      let foerderungBetrag = 0;
+      let investBrutto = 0;
+      
+      // KfW max. förderfähige Kosten: 30.000€ für 1. Wohneinheit
+      const maxFoerderfaehig = 30000;
       
       switch(selectedTechB) {
         case 'wp':
@@ -1008,7 +1041,11 @@
           elecCostB = (stromGesamt + wpStrombedarf) * i.strompreis;
           feedInB = 0;
           maintCostB = 200;
-          investB = 18000 + (i.wohnflaeche > 150 ? 4000 : 0);
+          investBrutto = 18000 + (i.wohnflaeche > 150 ? 4000 : 0);
+          // Förderung nur auf WP-Kosten (max. 30k förderfähig)
+          foerderungBetrag = Math.min(investBrutto, maxFoerderfaehig) * i.foerderung;
+          investB = investBrutto - foerderungBetrag;
+          if (i.foerderung > 0) techBName += ' (mit Förderung)';
           break;
         case 'wp_pv':
           techBName = 'Wärmepumpe + PV';
@@ -1033,7 +1070,14 @@
           elecCostB = netzbezug * i.strompreis;
           feedInB = -einspeisung * 0.082; // Einspeisevergütung
           maintCostB = 250;
-          investB = 18000 + (i.wohnflaeche > 150 ? 4000 : 0) + i.pvGroesse * 1400 + i.batterie * 800;
+          
+          // WP costs (förderfähig) + PV costs (nicht förderfähig via KfW Heizung)
+          const wpKosten = 18000 + (i.wohnflaeche > 150 ? 4000 : 0);
+          const pvKosten = i.pvGroesse * 1400 + i.batterie * 800;
+          foerderungBetrag = Math.min(wpKosten, maxFoerderfaehig) * i.foerderung;
+          investBrutto = wpKosten + pvKosten;
+          investB = investBrutto - foerderungBetrag;
+          if (i.foerderung > 0) techBName += ' (mit Förderung)';
           break;
         case 'gas_neu':
           techBName = 'Gas-Brennwert (neu)';
@@ -1043,6 +1087,8 @@
           feedInB = 0;
           maintCostB = 180;
           investB = 12000;
+          investBrutto = investB;
+          // Keine Förderung für Gasheizungen
           break;
         case 'pellets_neu':
           techBName = 'Pelletheizung (neu)';
@@ -1051,7 +1097,11 @@
           elecCostB = pelletBedarfNeu * 0.35 + stromGesamt * i.strompreis;
           feedInB = 0;
           maintCostB = 350;
-          investB = 25000;
+          investBrutto = 25000;
+          // Pellets: auch förderfähig mit ähnlichen Sätzen
+          foerderungBetrag = Math.min(investBrutto, maxFoerderfaehig) * i.foerderung * 0.5; // geringere Förderung für Biomasse
+          investB = investBrutto - foerderungBetrag;
+          if (i.foerderung > 0 && foerderungBetrag > 0) techBName += ' (mit Förderung)';
           break;
       }
 
@@ -1103,6 +1153,9 @@
       document.getElementById('elecCostB').textContent = fmt(elecCostB) + ' €';
       document.getElementById('feedInB').textContent = fmt(feedInB) + ' €';
       document.getElementById('maintCostB').textContent = fmt(maintCostB) + ' €';
+      document.getElementById('investBrutto').textContent = fmt(investBrutto) + ' €';
+      document.getElementById('foerderungBetrag').textContent = '-' + fmt(foerderungBetrag) + ' €';
+      document.getElementById('foerderungRow').style.display = foerderungBetrag > 0 ? 'flex' : 'none';
       document.getElementById('investB').textContent = fmt(investB) + ' €';
       document.getElementById('totalB').textContent = fmt(totalB) + ' €';
 
