@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hausenergierechner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0a0f1a;
+      --bg-card: #111827;
+      --bg-input: #1f2937;
+      --border: #374151;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.15);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding: 2rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent) 0%, #34d399 50%, #a7f3d0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      font-size: 1.1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    /* Input Panel */
+    .input-panel {
+      background: var(--bg-card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: sticky;
+      top: 2rem;
+    }
+
+    .input-section {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .input-section:last-child {
+      border-bottom: none;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .input-group {
+      margin-bottom: 1rem;
+    }
+
+    .input-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0.375rem;
+    }
+
+    .input-wrapper {
+      display: flex;
+      align-items: stretch;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-wrapper:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    input[type="number"], select {
+      flex: 1;
+      background: transparent;
+      border: none;
+      padding: 0.75rem 1rem;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9375rem;
+      outline: none;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button {
+      opacity: 0.5;
+    }
+
+    select {
+      cursor: pointer;
+    }
+
+    .unit {
+      display: flex;
+      align-items: center;
+      padding: 0 1rem;
+      background: rgba(255,255,255,0.03);
+      color: var(--text-dim);
+      font-size: 0.8125rem;
+      font-family: 'JetBrains Mono', monospace;
+      border-left: 1px solid var(--border);
+      min-width: 60px;
+      justify-content: center;
+    }
+
+    /* Results Panel */
+    .results-panel {
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .result-card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+    }
+
+    .result-card.highlight {
+      border-color: var(--accent);
+      box-shadow: 0 0 40px -10px var(--accent-glow);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+    }
+
+    .kpi {
+      background: var(--bg-input);
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+
+    .kpi-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .kpi-value.positive { color: var(--success); }
+    .kpi-value.negative { color: var(--danger); }
+    .kpi-value.neutral { color: var(--blue); }
+
+    .kpi-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 0.375rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .kpi-unit {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    /* Charts */
+    .chart-container {
+      position: relative;
+      height: 280px;
+      margin-top: 1rem;
+    }
+
+    /* Energy Flow Diagram */
+    .energy-flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 1rem;
+      align-items: center;
+      padding: 1rem 0;
+    }
+
+    .flow-box {
+      background: var(--bg-input);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .flow-box.source { border-left: 3px solid var(--warning); }
+    .flow-box.use { border-left: 3px solid var(--blue); }
+    .flow-box.pv { border-left: 3px solid var(--success); }
+
+    .flow-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .flow-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 0.25rem;
+    }
+
+    .flow-arrow {
+      color: var(--text-dim);
+      font-size: 1.5rem;
+    }
+
+    /* Scenario Comparison */
+    .scenario-row {
+      display: grid;
+      grid-template-columns: 1fr repeat(2, 120px);
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .scenario-row:last-child {
+      border-bottom: none;
+    }
+
+    .scenario-row.header {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .scenario-label {
+      font-size: 0.875rem;
+    }
+
+    .scenario-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9375rem;
+      text-align: right;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .badge.success {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--success);
+    }
+
+    .badge.warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+    }
+
+    /* Tooltip */
+    .info-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      color: var(--text-dim);
+      font-size: 10px;
+      cursor: help;
+      margin-left: 0.375rem;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 3rem 0 2rem;
+      color: var(--text-dim);
+      font-size: 0.8125rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Hausenergierechner</h1>
+      <p>Wirtschaftlichkeit von PV-Anlagen & Wärmepumpen berechnen</p>
+    </header>
+
+    <div class="grid">
+      <!-- Input Panel -->
+      <div class="input-panel">
+        <div class="input-section">
+          <div class="section-title">Gebäude & Bedarf</div>
+          
+          <div class="input-group">
+            <label>Wohnfläche (beheizt)</label>
+            <div class="input-wrapper">
+              <input type="number" id="wohnflaeche" value="260" min="20" max="1000">
+              <span class="unit">m²</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Anzahl Bewohner</label>
+            <div class="input-wrapper">
+              <input type="number" id="bewohner" value="4" min="1" max="10">
+              <span class="unit">Pers.</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Wärmebedarf Heizung</label>
+            <div class="input-wrapper">
+              <input type="number" id="waermebedarf" value="25000" min="0" max="100000" step="500">
+              <span class="unit">kWh/a</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Strombedarf Haushalt</label>
+            <div class="input-wrapper">
+              <input type="number" id="strombedarf" value="2500" min="500" max="20000" step="100">
+              <span class="unit">kWh/a</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>E-Mobilität</label>
+            <div class="input-wrapper">
+              <input type="number" id="emobility" value="0" min="0" max="20000" step="500">
+              <span class="unit">kWh/a</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-section">
+          <div class="section-title">PV-Anlage</div>
+          
+          <div class="input-group">
+            <label>Anlagenleistung</label>
+            <div class="input-wrapper">
+              <input type="number" id="pvLeistung" value="10" min="0" max="100" step="0.5">
+              <span class="unit">kWp</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Batteriespeicher</label>
+            <div class="input-wrapper">
+              <input type="number" id="batterie" value="0" min="0" max="50" step="1">
+              <span class="unit">kWh</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Anlagenkosten (netto)</label>
+            <div class="input-wrapper">
+              <input type="number" id="pvKosten" value="13000" min="0" max="200000" step="500">
+              <span class="unit">€</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-section">
+          <div class="section-title">Wärmepumpe</div>
+          
+          <div class="input-group">
+            <label>Wärmepumpe installiert?</label>
+            <div class="input-wrapper">
+              <select id="wpInstalliert">
+                <option value="1">Ja</option>
+                <option value="0">Nein (Gasheizung)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Jahresarbeitszahl (COP)</label>
+            <div class="input-wrapper">
+              <input type="number" id="cop" value="3.5" min="2" max="6" step="0.1">
+              <span class="unit">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-section">
+          <div class="section-title">Energiepreise</div>
+          
+          <div class="input-group">
+            <label>Strompreis (brutto)</label>
+            <div class="input-wrapper">
+              <input type="number" id="strompreis" value="0.31" min="0.1" max="1" step="0.01">
+              <span class="unit">€/kWh</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Gaspreis (brutto)</label>
+            <div class="input-wrapper">
+              <input type="number" id="gaspreis" value="0.12" min="0.05" max="0.5" step="0.01">
+              <span class="unit">€/kWh</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Einspeisevergütung</label>
+            <div class="input-wrapper">
+              <input type="number" id="einspeiseverguetung" value="0.082" min="0" max="0.2" step="0.001">
+              <span class="unit">€/kWh</span>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Preissteigerung/Jahr</label>
+            <div class="input-wrapper">
+              <input type="number" id="preissteigerung" value="3" min="-5" max="10" step="0.5">
+              <span class="unit">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Panel -->
+      <div class="results-panel">
+        <!-- KPIs -->
+        <div class="result-card highlight">
+          <div class="card-header">
+            <span class="card-title">Wirtschaftlichkeit</span>
+            <span class="badge success" id="badge">✓ Rentabel</span>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-value positive" id="kpiIrr">12.4<span class="kpi-unit">%</span></div>
+              <div class="kpi-label">Rendite (IRR)</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-value neutral" id="kpiPayback">8<span class="kpi-unit"> Jahre</span></div>
+              <div class="kpi-label">Amortisation</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-value" id="kpiLcoe">0.07<span class="kpi-unit"> €/kWh</span></div>
+              <div class="kpi-label">Stromgestehung</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-value positive" id="kpiNpv">+14.255<span class="kpi-unit"> €</span></div>
+              <div class="kpi-label">Kapitalwert (20a)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Energy Balance -->
+        <div class="result-card">
+          <div class="card-header">
+            <span class="card-title">Energiebilanz (Jahr 1)</span>
+          </div>
+          <div class="energy-flow">
+            <div class="flow-box pv">
+              <div class="flow-value" id="flowPvProd">10.390</div>
+              <div class="flow-label">PV-Produktion kWh/a</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box use">
+              <div class="flow-value" id="flowEigenverbrauch">3.850</div>
+              <div class="flow-label">Eigenverbrauch kWh/a</div>
+            </div>
+          </div>
+          <div class="energy-flow">
+            <div class="flow-box source">
+              <div class="flow-value" id="flowNetzbezug">1.150</div>
+              <div class="flow-label">Netzbezug kWh/a</div>
+            </div>
+            <div class="flow-arrow">←</div>
+            <div class="flow-box">
+              <div class="flow-value" id="flowEinspeisung">6.540</div>
+              <div class="flow-label">Einspeisung kWh/a</div>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center;">
+            <div style="text-align: center;">
+              <div style="font-size: 2rem; font-weight: 700; color: var(--success);" id="autarkiegrad">77%</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">AUTARKIEGRAD</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 2rem; font-weight: 700; color: var(--blue);" id="eigenverbrauchsquote">37%</div>
+              <div style="font-size: 0.75rem; color: var(--text-dim);">EIGENVERBRAUCH</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly Production Chart -->
+        <div class="result-card">
+          <div class="card-header">
+            <span class="card-title">Monatliche PV-Produktion vs. Verbrauch</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Cost Comparison -->
+        <div class="result-card">
+          <div class="card-header">
+            <span class="card-title">Kostenvergleich über 20 Jahre</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="costChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Yearly Cash Flow -->
+        <div class="result-card">
+          <div class="card-header">
+            <span class="card-title">Jährlicher Cashflow</span>
+          </div>
+          <div class="scenario-row header">
+            <span>Jahr</span>
+            <span style="text-align: right;">Ohne PV</span>
+            <span style="text-align: right;">Mit PV</span>
+          </div>
+          <div id="cashflowRows"></div>
+        </div>
+
+        <!-- CO2 -->
+        <div class="result-card">
+          <div class="card-header">
+            <span class="card-title">CO₂-Einsparung</span>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-value positive" id="co2Year">4.3<span class="kpi-unit"> t/a</span></div>
+              <div class="kpi-label">Pro Jahr</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-value positive" id="co2Total">86<span class="kpi-unit"> t</span></div>
+              <div class="kpi-label">Über 20 Jahre</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Hausenergierechner • Vereinfachte Berechnung basierend auf PVGIS-Daten für Süddeutschland
+    </footer>
+  </div>
+
+  <script>
+    // PVGIS monthly production factors (kWh per kWp) - Süddeutschland
+    const PVGIS_MONTHLY = [37, 57, 94, 126, 130, 132, 135, 124, 105, 72, 42, 31];
+    const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+    
+    // Standard load profile factors (relative monthly consumption)
+    const SLP_MONTHLY = [1.15, 1.05, 0.95, 0.85, 0.85, 0.80, 0.85, 0.85, 0.90, 1.00, 1.10, 1.20];
+    
+    // CO2 factors (kg/kWh)
+    const CO2_STROM = 0.42;  // German grid mix
+    const CO2_GAS = 0.201;
+
+    // Chart instances
+    let monthlyChart, costChart;
+
+    // Get input values
+    function getInputs() {
+      return {
+        wohnflaeche: parseFloat(document.getElementById('wohnflaeche').value) || 0,
+        bewohner: parseFloat(document.getElementById('bewohner').value) || 0,
+        waermebedarf: parseFloat(document.getElementById('waermebedarf').value) || 0,
+        strombedarf: parseFloat(document.getElementById('strombedarf').value) || 0,
+        emobility: parseFloat(document.getElementById('emobility').value) || 0,
+        pvLeistung: parseFloat(document.getElementById('pvLeistung').value) || 0,
+        batterie: parseFloat(document.getElementById('batterie').value) || 0,
+        pvKosten: parseFloat(document.getElementById('pvKosten').value) || 0,
+        wpInstalliert: document.getElementById('wpInstalliert').value === '1',
+        cop: parseFloat(document.getElementById('cop').value) || 3.5,
+        strompreis: parseFloat(document.getElementById('strompreis').value) || 0.31,
+        gaspreis: parseFloat(document.getElementById('gaspreis').value) || 0.12,
+        einspeiseverguetung: parseFloat(document.getElementById('einspeiseverguetung').value) || 0.08,
+        preissteigerung: parseFloat(document.getElementById('preissteigerung').value) / 100 || 0.03,
+      };
+    }
+
+    // Calculate everything
+    function calculate() {
+      const i = getInputs();
+      
+      // Warmwasser-Bedarf (12.5 kWh/m²/a is standard)
+      const wwBedarf = 12.5 * i.wohnflaeche;
+      const waermeBedarf = i.waermebedarf + wwBedarf;
+      
+      // Strombedarf für Wärmepumpe
+      const wpStrombedarf = i.wpInstalliert ? waermeBedarf / i.cop : 0;
+      const strombedarfGesamt = i.strombedarf + i.emobility + wpStrombedarf;
+      
+      // PV-Produktion (Jahr 1)
+      const pvProduktion = i.pvLeistung * PVGIS_MONTHLY.reduce((a, b) => a + b, 0);
+      
+      // Monatliche Produktion und Verbrauch
+      const monthlyProd = PVGIS_MONTHLY.map(f => f * i.pvLeistung);
+      const avgMonthlyConsumption = strombedarfGesamt / 12;
+      const monthlyConsumption = SLP_MONTHLY.map(f => f * avgMonthlyConsumption);
+      
+      // Eigenverbrauchsquote (simplified model)
+      // Base quote depends on system size relative to consumption
+      let baseEigenverbrauch = 0.3; // 30% base for typical household
+      if (pvProduktion > 0) {
+        const ratio = strombedarfGesamt / pvProduktion;
+        baseEigenverbrauch = Math.min(0.8, 0.25 + 0.3 * ratio);
+      }
+      
+      // Battery increases self-consumption
+      const batteryBonus = Math.min(0.3, i.batterie * 0.05);
+      const eigenverbrauchsQuote = Math.min(0.9, baseEigenverbrauch + batteryBonus);
+      
+      const eigenverbrauch = pvProduktion * eigenverbrauchsQuote;
+      const einspeisung = pvProduktion - eigenverbrauch;
+      const netzbezug = Math.max(0, strombedarfGesamt - eigenverbrauch);
+      const autarkiegrad = strombedarfGesamt > 0 ? (eigenverbrauch / strombedarfGesamt) : 0;
+      
+      // Jahreskosten OHNE PV
+      let kostenOhnePV = strombedarfGesamt * i.strompreis;
+      if (!i.wpInstalliert) {
+        kostenOhnePV = i.strombedarf * i.strompreis + waermeBedarf * i.gaspreis;
+      }
+      
+      // Jahreskosten MIT PV (Jahr 1)
+      const stromkostenMitPV = netzbezug * i.strompreis;
+      const einspeiseverguetung = einspeisung * i.einspeiseverguetung;
+      let kostenMitPV = stromkostenMitPV - einspeiseverguetung;
+      if (!i.wpInstalliert) {
+        kostenMitPV += waermeBedarf * i.gaspreis;
+      }
+      
+      // 20-year cashflow
+      const years = 20;
+      const degradation = 0.004; // 0.4% per year
+      const cashflowOhne = [];
+      const cashflowMit = [];
+      let cumOhne = 0, cumMit = i.pvKosten * 1.19; // incl. MwSt
+      
+      for (let y = 0; y < years; y++) {
+        const preisFaktor = Math.pow(1 + i.preissteigerung, y);
+        const pvFaktor = Math.pow(1 - degradation, y);
+        
+        // Ohne PV
+        const jahresKostenOhne = kostenOhnePV * preisFaktor;
+        cumOhne += jahresKostenOhne;
+        cashflowOhne.push({ year: y + 1, kosten: jahresKostenOhne, kumuliert: cumOhne });
+        
+        // Mit PV
+        const pvProdY = pvProduktion * pvFaktor;
+        const eigenverbrauchY = pvProdY * eigenverbrauchsQuote;
+        const einspeisungY = pvProdY - eigenverbrauchY;
+        const netzbezugY = Math.max(0, strombedarfGesamt - eigenverbrauchY);
+        
+        let jahresKostenMit = netzbezugY * i.strompreis * preisFaktor - einspeisungY * i.einspeiseverguetung;
+        if (!i.wpInstalliert) {
+          jahresKostenMit += waermeBedarf * i.gaspreis * preisFaktor;
+        }
+        cumMit += jahresKostenMit;
+        cashflowMit.push({ year: y + 1, kosten: jahresKostenMit, kumuliert: cumMit });
+      }
+      
+      // NPV (simplified)
+      const totalSavings = cumOhne - cumMit;
+      const npv = totalSavings - i.pvKosten * 1.19;
+      
+      // Payback
+      let payback = years + 1;
+      for (let y = 0; y < years; y++) {
+        if (cashflowOhne[y].kumuliert >= cashflowMit[y].kumuliert) {
+          payback = y + 1;
+          break;
+        }
+      }
+      
+      // IRR (simplified Newton-Raphson)
+      function calcNPV(rate) {
+        let npv = -i.pvKosten * 1.19;
+        for (let y = 0; y < years; y++) {
+          const saving = cashflowOhne[y].kosten - cashflowMit[y].kosten;
+          npv += saving / Math.pow(1 + rate, y + 1);
+        }
+        return npv;
+      }
+      
+      let irr = 0.05;
+      for (let iter = 0; iter < 50; iter++) {
+        const npvVal = calcNPV(irr);
+        const npvDeriv = (calcNPV(irr + 0.001) - npvVal) / 0.001;
+        if (Math.abs(npvDeriv) < 0.001) break;
+        irr = irr - npvVal / npvDeriv;
+        irr = Math.max(-0.5, Math.min(1, irr));
+      }
+      
+      // LCOE
+      let totalProd = 0;
+      for (let y = 0; y < years; y++) {
+        totalProd += pvProduktion * Math.pow(1 - degradation, y);
+      }
+      const lcoe = totalProd > 0 ? (i.pvKosten * 1.19) / totalProd : 0;
+      
+      // CO2
+      const co2Savings = pvProduktion * CO2_STROM / 1000; // t/a
+      
+      return {
+        pvProduktion,
+        eigenverbrauch,
+        einspeisung,
+        netzbezug,
+        autarkiegrad,
+        eigenverbrauchsQuote,
+        kostenOhnePV,
+        kostenMitPV,
+        cashflowOhne,
+        cashflowMit,
+        npv,
+        payback,
+        irr,
+        lcoe,
+        co2Savings,
+        monthlyProd,
+        monthlyConsumption,
+      };
+    }
+
+    // Format numbers
+    function fmt(n, decimals = 0) {
+      return n.toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    // Update UI
+    function updateUI() {
+      const r = calculate();
+      
+      // KPIs
+      document.getElementById('kpiIrr').innerHTML = `${fmt(r.irr * 100, 1)}<span class="kpi-unit">%</span>`;
+      document.getElementById('kpiPayback').innerHTML = `${r.payback > 20 ? '>20' : r.payback}<span class="kpi-unit"> Jahre</span>`;
+      document.getElementById('kpiLcoe').innerHTML = `${fmt(r.lcoe, 3)}<span class="kpi-unit"> €/kWh</span>`;
+      document.getElementById('kpiNpv').innerHTML = `${r.npv >= 0 ? '+' : ''}${fmt(r.npv)}<span class="kpi-unit"> €</span>`;
+      
+      // Badge
+      const badge = document.getElementById('badge');
+      if (r.irr > 0.05 && r.npv > 0) {
+        badge.className = 'badge success';
+        badge.textContent = '✓ Rentabel';
+      } else if (r.irr > 0) {
+        badge.className = 'badge warning';
+        badge.textContent = '○ Grenzwertig';
+      } else {
+        badge.className = 'badge';
+        badge.style.background = 'rgba(239, 68, 68, 0.15)';
+        badge.style.color = '#ef4444';
+        badge.textContent = '✗ Nicht rentabel';
+      }
+      
+      // NPV color
+      const npvEl = document.getElementById('kpiNpv');
+      npvEl.className = 'kpi-value ' + (r.npv >= 0 ? 'positive' : 'negative');
+      
+      // Energy flow
+      document.getElementById('flowPvProd').textContent = fmt(r.pvProduktion);
+      document.getElementById('flowEigenverbrauch').textContent = fmt(r.eigenverbrauch);
+      document.getElementById('flowNetzbezug').textContent = fmt(r.netzbezug);
+      document.getElementById('flowEinspeisung').textContent = fmt(r.einspeisung);
+      document.getElementById('autarkiegrad').textContent = fmt(r.autarkiegrad * 100) + '%';
+      document.getElementById('eigenverbrauchsquote').textContent = fmt(r.eigenverbrauchsQuote * 100) + '%';
+      
+      // CO2
+      document.getElementById('co2Year').innerHTML = `${fmt(r.co2Savings, 1)}<span class="kpi-unit"> t/a</span>`;
+      document.getElementById('co2Total').innerHTML = `${fmt(r.co2Savings * 20, 0)}<span class="kpi-unit"> t</span>`;
+      
+      // Cashflow rows
+      const cfContainer = document.getElementById('cashflowRows');
+      cfContainer.innerHTML = '';
+      [0, 4, 9, 14, 19].forEach(y => {
+        const row = document.createElement('div');
+        row.className = 'scenario-row';
+        row.innerHTML = `
+          <span class="scenario-label">Jahr ${y + 1}</span>
+          <span class="scenario-value">${fmt(r.cashflowOhne[y].kumuliert)} €</span>
+          <span class="scenario-value">${fmt(r.cashflowMit[y].kumuliert)} €</span>
+        `;
+        cfContainer.appendChild(row);
+      });
+      
+      // Charts
+      updateCharts(r);
+    }
+
+    function updateCharts(r) {
+      const ctx1 = document.getElementById('monthlyChart').getContext('2d');
+      const ctx2 = document.getElementById('costChart').getContext('2d');
+      
+      // Monthly chart
+      if (monthlyChart) monthlyChart.destroy();
+      monthlyChart = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: MONTHS,
+          datasets: [
+            {
+              label: 'PV-Produktion',
+              data: r.monthlyProd,
+              backgroundColor: 'rgba(16, 185, 129, 0.7)',
+              borderColor: 'rgb(16, 185, 129)',
+              borderWidth: 1,
+              borderRadius: 4,
+            },
+            {
+              label: 'Verbrauch',
+              data: r.monthlyConsumption,
+              backgroundColor: 'rgba(59, 130, 246, 0.7)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 1,
+              borderRadius: 4,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#9ca3af', font: { family: 'DM Sans' } }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(55, 65, 81, 0.5)' },
+              ticks: { color: '#9ca3af' }
+            },
+            y: {
+              grid: { color: 'rgba(55, 65, 81, 0.5)' },
+              ticks: { color: '#9ca3af' },
+              title: { display: true, text: 'kWh', color: '#6b7280' }
+            }
+          }
+        }
+      });
+      
+      // Cost comparison chart
+      if (costChart) costChart.destroy();
+      const years = r.cashflowOhne.map(cf => cf.year);
+      costChart = new Chart(ctx2, {
+        type: 'line',
+        data: {
+          labels: years,
+          datasets: [
+            {
+              label: 'Ohne PV (kumuliert)',
+              data: r.cashflowOhne.map(cf => cf.kumuliert),
+              borderColor: 'rgb(239, 68, 68)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              fill: true,
+              tension: 0.3,
+            },
+            {
+              label: 'Mit PV (kumuliert)',
+              data: r.cashflowMit.map(cf => cf.kumuliert),
+              borderColor: 'rgb(16, 185, 129)',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              fill: true,
+              tension: 0.3,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#9ca3af', font: { family: 'DM Sans' } }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(55, 65, 81, 0.5)' },
+              ticks: { color: '#9ca3af' },
+              title: { display: true, text: 'Jahre', color: '#6b7280' }
+            },
+            y: {
+              grid: { color: 'rgba(55, 65, 81, 0.5)' },
+              ticks: { color: '#9ca3af' },
+              title: { display: true, text: '€ (kumuliert)', color: '#6b7280' }
+            }
+          }
+        }
+      });
+    }
+
+    // Event listeners
+    document.querySelectorAll('input, select').forEach(el => {
+      el.addEventListener('input', updateUI);
+      el.addEventListener('change', updateUI);
+    });
+
+    // Initial calculation
+    updateUI();
+  </script>
+</body>
+</html>
