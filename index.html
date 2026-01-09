@@ -557,6 +557,34 @@
               </div>
             </div>
           </div>
+
+          <div class="input-row">
+            <div class="input-group">
+              <label>🦶 Fußbodenheizung vorhanden?</label>
+              <div class="input-wrapper">
+                <select id="fussbodenheizung">
+                  <option value="0">Nein (Heizkörper/Radiatoren)</option>
+                  <option value="1" selected>Ja, Fußbodenheizung</option>
+                  <option value="2">Teilweise (gemischt)</option>
+                </select>
+              </div>
+            </div>
+            <div class="input-group">
+              <label>📍 Region</label>
+              <div class="input-wrapper">
+                <select id="region">
+                  <option value="bw" selected>Baden-Württemberg</option>
+                  <option value="by">Bayern</option>
+                  <option value="nord">Norddeutschland</option>
+                  <option value="ost">Ostdeutschland</option>
+                  <option value="west">Westdeutschland</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: -0.5rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+            🌡️ <strong>Klimaerwärmung:</strong> Die Berechnung berücksichtigt, dass der Heizbedarf in Baden-Württemberg durch mildere Winter voraussichtlich um ~0,8% pro Jahr sinkt (Quelle: LUBW Klimaprojektion).
+          </div>
         </div>
 
         <div class="nav-buttons">
@@ -951,6 +979,8 @@
         oelverbrauch: parseFloat(document.getElementById('oelverbrauch').value) || 2500,
         stromverbrauch: parseFloat(document.getElementById('stromverbrauch').value) || 3500,
         eauto: parseFloat(document.getElementById('eauto').value) || 0,
+        fussbodenheizung: parseInt(document.getElementById('fussbodenheizung').value) || 0,
+        region: document.getElementById('region').value || 'bw',
         preisA: parseFloat(document.getElementById('preisA').value) || 1.05,
         heizungAlter: document.getElementById('heizungAlter').value,
         cop: parseFloat(document.getElementById('cop').value) || 3.5,
@@ -961,6 +991,31 @@
         foerderung: parseFloat(document.getElementById('foerderung').value) / 100 || 0,
       };
     }
+    
+    // COP adjustment based on heating system
+    function getEffectiveCOP(baseCOP, fussbodenheizung) {
+      // Fußbodenheizung works at 35°C, Radiatoren at 55°C
+      // This significantly affects heat pump efficiency
+      switch(fussbodenheizung) {
+        case 0: return baseCOP * 0.75; // Radiatoren: -25% COP
+        case 1: return baseCOP * 1.1;  // Fußbodenheizung: +10% COP  
+        case 2: return baseCOP * 0.95; // Gemischt: -5% COP
+        default: return baseCOP;
+      }
+    }
+    
+    // Climate warming factor per region (yearly reduction in heating demand)
+    function getClimateWarmingFactor(region) {
+      // Based on LUBW/DWD climate projections for Germany
+      const factors = {
+        'bw': 0.008,   // Baden-Württemberg: 0.8% less heating per year
+        'by': 0.007,   // Bayern: 0.7%
+        'nord': 0.006, // Norddeutschland: 0.6%
+        'ost': 0.007,  // Ostdeutschland: 0.7%
+        'west': 0.007, // Westdeutschland: 0.7%
+      };
+      return factors[region] || 0.007;
+    }
 
     function calculateAndShow() {
       const i = getInputs();
@@ -968,13 +1023,22 @@
       
       // Heat demand based on building age and oil consumption
       // 1 Liter Heizöl ≈ 10 kWh
-      let waermebedarf = i.oelverbrauch * 10;
+      let waermebedarfBase = i.oelverbrauch * 10;
       
       // If no oil consumption given, estimate from area
       if (i.oelverbrauch === 0) {
         const faktoren = { alt: 200, teilsaniert: 130, saniert: 80, neubau: 40 };
-        waermebedarf = i.wohnflaeche * (faktoren[i.gebaeudealter] || 130);
+        waermebedarfBase = i.wohnflaeche * (faktoren[i.gebaeudealter] || 130);
       }
+      
+      // For year 1 calculation
+      let waermebedarf = waermebedarfBase;
+      
+      // Climate warming factor
+      const klimaFaktor = getClimateWarmingFactor(i.region);
+      
+      // Effective COP based on floor heating
+      const effectiveCOP = getEffectiveCOP(i.cop, i.fussbodenheizung);
 
       // Total electricity need
       const stromGesamt = i.stromverbrauch + i.eauto;
@@ -1037,7 +1101,7 @@
         case 'wp':
           techBName = 'Wärmepumpe';
           techBIcon = '🌡️';
-          wpStrombedarf = waermebedarf / i.cop;
+          wpStrombedarf = waermebedarf / effectiveCOP;
           elecCostB = (stromGesamt + wpStrombedarf) * i.strompreis;
           feedInB = 0;
           maintCostB = 200;
@@ -1050,7 +1114,7 @@
         case 'wp_pv':
           techBName = 'Wärmepumpe + PV';
           techBIcon = '☀️🌡️';
-          wpStrombedarf = waermebedarf / i.cop;
+          wpStrombedarf = waermebedarf / effectiveCOP;
           const stromTotal = stromGesamt + wpStrombedarf;
           
           // PV production (Süddeutschland ~1050 kWh/kWp)
@@ -1106,19 +1170,36 @@
       }
 
       // ========== 20 YEAR CALCULATION ==========
+      // With climate warming and price changes
       let totalA = investA;
       let totalB = investB;
       const cashflowA = [];
       const cashflowB = [];
       
       for (let y = 0; y < years; y++) {
-        const faktor = Math.pow(1 + i.preissteigerung, y);
+        const preisFaktor = Math.pow(1 + i.preissteigerung, y);
+        // Climate warming reduces heating demand each year
+        const klimaFaktorY = Math.pow(1 - klimaFaktor, y);
+        const waermebedarfY = waermebedarfBase * klimaFaktorY;
         
-        const jahresA = (fuelCostA + elecCostA + maintCostA) * faktor;
+        // Recalculate fuel costs for tech A with reduced heating demand
+        let fuelCostAY = fuelCostA * klimaFaktorY;
+        
+        // Recalculate electricity costs for tech B (WP) with reduced heating demand
+        let wpStrombedarfY = 0;
+        if (selectedTechB === 'wp' || selectedTechB === 'wp_pv') {
+          wpStrombedarfY = waermebedarfY / effectiveCOP;
+        }
+        let elecCostBY = elecCostB;
+        if (selectedTechB === 'wp') {
+          elecCostBY = (stromGesamt + wpStrombedarfY) * i.strompreis;
+        }
+        
+        const jahresA = (fuelCostAY + elecCostA + maintCostA) * preisFaktor;
         totalA += jahresA;
         cashflowA.push(totalA);
         
-        const jahresB = (elecCostB + feedInB + maintCostB) * faktor;
+        const jahresB = (elecCostBY + feedInB + maintCostB) * preisFaktor;
         totalB += jahresB;
         cashflowB.push(totalB);
       }
