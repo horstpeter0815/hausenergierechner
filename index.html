@@ -569,21 +569,33 @@
                 </select>
               </div>
             </div>
+          </div>
+
+          <div class="input-row">
             <div class="input-group">
-              <label>📍 Region</label>
+              <label>🧭 Dachausrichtung (für PV)</label>
               <div class="input-wrapper">
-                <select id="region">
-                  <option value="bw" selected>Baden-Württemberg</option>
-                  <option value="by">Bayern</option>
-                  <option value="nord">Norddeutschland</option>
-                  <option value="ost">Ostdeutschland</option>
-                  <option value="west">Westdeutschland</option>
+                <select id="dachausrichtung">
+                  <option value="1.0">Süd (optimal)</option>
+                  <option value="0.95" selected>Südost / Südwest</option>
+                  <option value="0.85">Ost / West</option>
+                  <option value="0.70">Nordost / Nordwest</option>
+                  <option value="0.55">Nord (ungünstig)</option>
                 </select>
               </div>
             </div>
-          </div>
-          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: -0.5rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
-            🌡️ <strong>Klimaerwärmung:</strong> Die Berechnung berücksichtigt, dass der Heizbedarf in Baden-Württemberg durch mildere Winter voraussichtlich um ~0,8% pro Jahr sinkt (Quelle: LUBW Klimaprojektion).
+            <div class="input-group">
+              <label>📐 Dachneigung</label>
+              <div class="input-wrapper">
+                <select id="dachneigung">
+                  <option value="0.87">Flachdach (0-10°)</option>
+                  <option value="0.95">15°</option>
+                  <option value="1.0" selected>30° (optimal)</option>
+                  <option value="0.98">45°</option>
+                  <option value="0.90">60° (steil)</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -980,7 +992,8 @@
         stromverbrauch: parseFloat(document.getElementById('stromverbrauch').value) || 3500,
         eauto: parseFloat(document.getElementById('eauto').value) || 0,
         fussbodenheizung: parseInt(document.getElementById('fussbodenheizung').value) || 0,
-        region: document.getElementById('region').value || 'bw',
+        dachausrichtung: parseFloat(document.getElementById('dachausrichtung').value) || 1.0,
+        dachneigung: parseFloat(document.getElementById('dachneigung').value) || 1.0,
         preisA: parseFloat(document.getElementById('preisA').value) || 1.05,
         heizungAlter: document.getElementById('heizungAlter').value,
         cop: parseFloat(document.getElementById('cop').value) || 3.5,
@@ -1004,17 +1017,11 @@
       }
     }
     
-    // Climate warming factor per region (yearly reduction in heating demand)
-    function getClimateWarmingFactor(region) {
-      // Based on LUBW/DWD climate projections for Germany
-      const factors = {
-        'bw': 0.008,   // Baden-Württemberg: 0.8% less heating per year
-        'by': 0.007,   // Bayern: 0.7%
-        'nord': 0.006, // Norddeutschland: 0.6%
-        'ost': 0.007,  // Ostdeutschland: 0.7%
-        'west': 0.007, // Westdeutschland: 0.7%
-      };
-      return factors[region] || 0.007;
+    // PV production factor based on roof orientation and tilt
+    function getPVFactor(dachausrichtung, dachneigung) {
+      // Combined factor for PV production
+      // Base: 1050 kWh/kWp for optimal South-facing 30° roof in BW
+      return dachausrichtung * dachneigung;
     }
 
     function calculateAndShow() {
@@ -1034,11 +1041,11 @@
       // For year 1 calculation
       let waermebedarf = waermebedarfBase;
       
-      // Climate warming factor
-      const klimaFaktor = getClimateWarmingFactor(i.region);
-      
       // Effective COP based on floor heating
       const effectiveCOP = getEffectiveCOP(i.cop, i.fussbodenheizung);
+      
+      // PV production factor based on roof
+      const pvFaktor = getPVFactor(i.dachausrichtung, i.dachneigung);
 
       // Total electricity need
       const stromGesamt = i.stromverbrauch + i.eauto;
@@ -1117,8 +1124,8 @@
           wpStrombedarf = waermebedarf / effectiveCOP;
           const stromTotal = stromGesamt + wpStrombedarf;
           
-          // PV production (Süddeutschland ~1050 kWh/kWp)
-          const pvProduktion = i.pvGroesse * 1050;
+          // PV production (Süddeutschland ~1050 kWh/kWp, adjusted for roof)
+          const pvProduktion = i.pvGroesse * 1050 * pvFaktor;
           
           // Self-consumption model
           let eigenverbrauchQuote = 0.30;
@@ -1170,7 +1177,6 @@
       }
 
       // ========== 20 YEAR CALCULATION ==========
-      // With climate warming and price changes
       let totalA = investA;
       let totalB = investB;
       const cashflowA = [];
@@ -1178,28 +1184,12 @@
       
       for (let y = 0; y < years; y++) {
         const preisFaktor = Math.pow(1 + i.preissteigerung, y);
-        // Climate warming reduces heating demand each year
-        const klimaFaktorY = Math.pow(1 - klimaFaktor, y);
-        const waermebedarfY = waermebedarfBase * klimaFaktorY;
         
-        // Recalculate fuel costs for tech A with reduced heating demand
-        let fuelCostAY = fuelCostA * klimaFaktorY;
-        
-        // Recalculate electricity costs for tech B (WP) with reduced heating demand
-        let wpStrombedarfY = 0;
-        if (selectedTechB === 'wp' || selectedTechB === 'wp_pv') {
-          wpStrombedarfY = waermebedarfY / effectiveCOP;
-        }
-        let elecCostBY = elecCostB;
-        if (selectedTechB === 'wp') {
-          elecCostBY = (stromGesamt + wpStrombedarfY) * i.strompreis;
-        }
-        
-        const jahresA = (fuelCostAY + elecCostA + maintCostA) * preisFaktor;
+        const jahresA = (fuelCostA + elecCostA + maintCostA) * preisFaktor;
         totalA += jahresA;
         cashflowA.push(totalA);
         
-        const jahresB = (elecCostBY + feedInB + maintCostB) * preisFaktor;
+        const jahresB = (elecCostB + feedInB + maintCostB) * preisFaktor;
         totalB += jahresB;
         cashflowB.push(totalB);
       }
